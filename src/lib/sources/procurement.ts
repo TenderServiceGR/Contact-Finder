@@ -3,13 +3,27 @@ import type { ProcurementAward, ProcurementSummary, SourceStatus } from "@/lib/t
 
 /**
  * Connector for ΚΗΜΔΗΣ (Central Electronic Registry of Public Procurement)
- * open data. Docs: https://cerpp.eprocurement.gov.gr/khmdhs-opendata/help
+ * Open Data API. Docs: https://cerpp.eprocurement.gov.gr/khmdhs-opendata/help
  *
- * The open dataset is typically queried by AFM (VAT) of the contractor.
- * Adjust `endpoint` below once you've confirmed the exact resource path
- * for your access tier (the portal exposes both a REST query API and bulk
- * CSV/JSON exports).
+ * Contracts are queried via POST /khmdhs-opendata/contract?page=0 with a
+ * JSON search body; `vatNumber` filters by the contractor's ΑΦΜ. No API
+ * key is required for this read-only endpoint. A 404 response means no
+ * contracts matched the criteria (not an error).
  */
+
+interface KhmdhsContract {
+  title?: string;
+  organization?: { key?: string; value?: string };
+  totalCostWithoutVAT?: number;
+  budget?: number;
+  contractSignedDate?: string;
+  objectDetailsList?: { cpvs?: { key?: string; value?: string }[] }[];
+}
+
+interface KhmdhsContractResponse {
+  content?: KhmdhsContract[];
+  totalElements?: number;
+}
 
 export interface ProcurementResult {
   status: SourceStatus;
@@ -26,30 +40,35 @@ export async function fetchFromProcurement(vat: string | undefined): Promise<Pro
   }
 
   try {
-    const endpoint = `${env.procurement.baseUrl}/contracts?contractorAfm=${encodeURIComponent(vat)}`;
-    const res = await fetch(endpoint, { next: { revalidate: 0 } });
+    const endpoint = `${env.procurement.baseUrl}/contract?page=0`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ vatNumber: vat }),
+      next: { revalidate: 0 },
+    });
 
     if (res.status === 404) {
       return { status: "ok", summary: { ...emptySummary(), available: false } };
     }
-    if (!res.ok) {
+    if (res.status === 429 || !res.ok) {
       return { status: "unavailable", summary: emptySummary() };
     }
 
-    const data = await res.json();
-    return { status: "ok", summary: summarizeAwards(data?.results ?? []) };
+    const data: KhmdhsContractResponse = await res.json();
+    return { status: "ok", summary: summarizeAwards(data?.content ?? [], data?.totalElements) };
   } catch {
     return { status: "unavailable", summary: emptySummary() };
   }
 }
 
-function summarizeAwards(rawAwards: any[]): ProcurementSummary {
-  const awards: ProcurementAward[] = rawAwards.map((a) => ({
-    title: a.title ?? a.contractTitle ?? "Contract",
-    authority: a.contractingAuthority ?? a.authority ?? "Unknown authority",
-    value: Number(a.value ?? a.contractValue ?? 0) || undefined,
-    date: a.awardDate ?? a.date,
-    cpv: a.cpvCode ?? a.cpv,
+function summarizeAwards(rawContracts: KhmdhsContract[], totalElements?: number): ProcurementSummary {
+  const awards: ProcurementAward[] = rawContracts.map((c) => ({
+    title: c.title ?? "Contract",
+    authority: c.organization?.value ?? "Unknown authority",
+    value: Number(c.totalCostWithoutVAT ?? c.budget ?? 0) || undefined,
+    date: c.contractSignedDate,
+    cpv: c.objectDetailsList?.[0]?.cpvs?.[0]?.key,
   }));
 
   if (awards.length === 0) return { ...emptySummary(), available: false };
@@ -61,7 +80,7 @@ function summarizeAwards(rawAwards: any[]): ProcurementSummary {
   const years = awards.map((a) => (a.date ? new Date(a.date).getFullYear() : undefined)).filter(Boolean) as number[];
 
   return {
-    contractsAwarded: awards.length,
+    contractsAwarded: totalElements ?? awards.length,
     totalValue,
     averageValue: totalValue / awards.length,
     largestContract: sorted[0],
