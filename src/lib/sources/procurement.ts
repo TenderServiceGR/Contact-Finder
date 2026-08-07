@@ -20,6 +20,9 @@ interface KhmdhsContract {
   budget?: number;
   contractSignedDate?: string;
   objectDetailsList?: { cpvs?: { key?: string; value?: string }[] }[];
+  contractingDataDetails?: {
+    contractingMembersDataList?: { vatNumber?: string; name?: string }[];
+  };
 }
 
 interface KhmdhsContractResponse {
@@ -75,21 +78,28 @@ export async function fetchFromProcurement(
     // The search API has no "exclude cancelled" flag — cancellations are
     // only filterable via a separate cancelDate range — so drop them here.
     const activeContracts = (data?.content ?? []).filter((c) => !c.cancelled);
-    return { status: "ok", summary: summarizeAwards(activeContracts) };
+    return { status: "ok", summary: summarizeAwards(activeContracts, vat) };
   } catch {
     return { status: "unavailable", summary: emptySummary() };
   }
 }
 
-function summarizeAwards(rawContracts: KhmdhsContract[]): ProcurementSummary {
-  const awards: ProcurementAward[] = rawContracts.map((c) => ({
-    title: c.title ?? "Contract",
-    authority: c.organization?.value ?? "Unknown authority",
-    value: Number(c.totalCostWithoutVAT ?? c.budget ?? 0) || undefined,
-    date: c.contractSignedDate,
-    cpv: c.objectDetailsList?.[0]?.cpvs?.[0]?.key,
-    referenceNumber: c.referenceNumber,
-  }));
+function summarizeAwards(rawContracts: KhmdhsContract[], vat: string): ProcurementSummary {
+  const awards: ProcurementAward[] = rawContracts.map((c) => {
+    const members = c.contractingDataDetails?.contractingMembersDataList ?? [];
+    // Prefer the member matching the searched contractor's ΑΦΜ — contracts
+    // can have multiple members (consortiums) and the match isn't always first.
+    const contractor = members.find((m) => m.vatNumber === vat) ?? members[0];
+    return {
+      title: c.title ?? "Contract",
+      authority: c.organization?.value ?? "Unknown authority",
+      value: Number(c.totalCostWithoutVAT ?? c.budget ?? 0) || undefined,
+      date: c.contractSignedDate,
+      cpv: c.objectDetailsList?.[0]?.cpvs?.[0]?.key,
+      referenceNumber: c.referenceNumber,
+      contractorName: contractor?.name?.trim(),
+    };
+  });
 
   if (awards.length === 0) return { ...emptySummary(), available: false };
 
@@ -129,15 +139,16 @@ function emptySummary(): ProcurementSummary {
 
 // --- Demo data ---
 function demoProcurementResult(vat: string, filters?: ProcurementFilters): ProcurementResult {
+  const contractingDataDetails = { contractingMembersDataList: [{ vatNumber: vat, name: "Demo Trading Single Member S.A." }] };
   const awards: KhmdhsContract[] = [
-    { title: "Προμήθεια εξοπλισμού πληροφορικής", referenceNumber: "24SYMV009215539", organization: { value: "Δήμος Αθηναίων" }, totalCostWithoutVAT: 84500, contractSignedDate: "2024-11-02", objectDetailsList: [{ cpvs: [{ key: "30200000-1" }] }] },
-    { title: "Υπηρεσίες συντήρησης λογισμικού", referenceNumber: "23SYMV007123456", organization: { value: "Υπουργείο Ψηφιακής Διακυβέρνησης" }, totalCostWithoutVAT: 132000, contractSignedDate: "2023-06-18", objectDetailsList: [{ cpvs: [{ key: "72267000-4" }] }] },
-    { title: "Προμήθεια αναλωσίμων γραφείου", referenceNumber: "22SYMV004987654", organization: { value: "Περιφέρεια Αττικής" }, totalCostWithoutVAT: 21750, contractSignedDate: "2022-02-09", objectDetailsList: [{ cpvs: [{ key: "30190000-7" }] }] },
+    { title: "Προμήθεια εξοπλισμού πληροφορικής", referenceNumber: "24SYMV009215539", organization: { value: "Δήμος Αθηναίων" }, totalCostWithoutVAT: 84500, contractSignedDate: "2024-11-02", objectDetailsList: [{ cpvs: [{ key: "30200000-1" }] }], contractingDataDetails },
+    { title: "Υπηρεσίες συντήρησης λογισμικού", referenceNumber: "23SYMV007123456", organization: { value: "Υπουργείο Ψηφιακής Διακυβέρνησης" }, totalCostWithoutVAT: 132000, contractSignedDate: "2023-06-18", objectDetailsList: [{ cpvs: [{ key: "72267000-4" }] }], contractingDataDetails },
+    { title: "Προμήθεια αναλωσίμων γραφείου", referenceNumber: "22SYMV004987654", organization: { value: "Περιφέρεια Αττικής" }, totalCostWithoutVAT: 21750, contractSignedDate: "2022-02-09", objectDetailsList: [{ cpvs: [{ key: "30190000-7" }] }], contractingDataDetails },
   ];
   const filtered = awards.filter((a) => {
     if (filters?.dateFrom && a.contractSignedDate && a.contractSignedDate < filters.dateFrom) return false;
     if (filters?.dateTo && a.contractSignedDate && a.contractSignedDate > filters.dateTo) return false;
     return true;
   });
-  return { status: "ok", summary: summarizeAwards(filtered) };
+  return { status: "ok", summary: summarizeAwards(filtered, vat) };
 }

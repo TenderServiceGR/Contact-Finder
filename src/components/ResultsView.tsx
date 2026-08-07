@@ -284,6 +284,7 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
                   <tr>
                     <th className="text-left font-medium px-3 py-2">Reference</th>
                     <th className="text-left font-medium px-3 py-2">Title</th>
+                    <th className="text-left font-medium px-3 py-2">Contractor</th>
                     <th className="text-left font-medium px-3 py-2">Authority</th>
                     <th className="text-left font-medium px-3 py-2">Date</th>
                     <th className="text-right font-medium px-3 py-2">Value</th>
@@ -294,6 +295,7 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
                     <tr key={i} className="border-t border-line">
                       <td className="px-3 py-2 font-data text-xs text-ink-soft whitespace-nowrap">{a.referenceNumber ?? "—"}</td>
                       <td className="px-3 py-2">{a.title}</td>
+                      <td className="px-3 py-2 text-ink-soft">{a.contractorName ?? "—"}</td>
                       <td className="px-3 py-2 text-ink-soft">{a.authority}</td>
                       <td className="px-3 py-2 font-data text-ink-soft">{a.date ?? "—"}</td>
                       <td className="px-3 py-2 text-right font-data">{money(a.value)}</td>
