@@ -17,6 +17,8 @@ function money(n?: number) {
   return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 }
 
+const AWARDS_PAGE_SIZE = 10;
+
 export function ResultsView({ profile }: { profile: CompanyProfile }) {
   const p = profile;
   const vat = p.identity.vat?.value;
@@ -26,6 +28,13 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
   const [dateTo, setDateTo] = useState("");
   const [filterLoading, setFilterLoading] = useState(false);
   const [filterError, setFilterError] = useState<string | null>(null);
+  const [awardsPage, setAwardsPage] = useState(1);
+
+  const awardsPageCount = Math.max(1, Math.ceil(procurement.awards.length / AWARDS_PAGE_SIZE));
+  const pagedAwards = procurement.awards.slice(
+    (awardsPage - 1) * AWARDS_PAGE_SIZE,
+    awardsPage * AWARDS_PAGE_SIZE
+  );
 
   async function handleApplyFilters() {
     if (!vat) return;
@@ -43,6 +52,7 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
         return;
       }
       setProcurement(data.summary);
+      setAwardsPage(1);
     } catch {
       setFilterError("Could not reach the server. Please try again.");
     } finally {
@@ -55,6 +65,7 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
     setDateTo("");
     setFilterError(null);
     setProcurement(profile.procurement);
+    setAwardsPage(1);
   }
 
   return (
@@ -264,7 +275,9 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
               <Field label="Last award"><span className="font-data">{procurement.lastAwardYear ?? "—"}</span></Field>
               <Field label="CPV categories"><span className="text-xs">{procurement.cpvCategories.join(", ") || "—"}</span></Field>
             </dl>
-            <p className="text-[0.7rem] uppercase tracking-wide text-ink-soft mb-2">Recent awards <Stamp source="procurement" /></p>
+            <p className="text-[0.7rem] uppercase tracking-wide text-ink-soft mb-2">
+              Awards <Stamp source="procurement" />
+            </p>
             <div className="border border-line rounded-sm overflow-hidden overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-paper text-ink-soft text-xs uppercase">
@@ -277,7 +290,7 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {procurement.recentAwards.map((a, i) => (
+                  {pagedAwards.map((a, i) => (
                     <tr key={i} className="border-t border-line">
                       <td className="px-3 py-2 font-data text-xs text-ink-soft whitespace-nowrap">{a.referenceNumber ?? "—"}</td>
                       <td className="px-3 py-2">{a.title}</td>
@@ -289,6 +302,29 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
                 </tbody>
               </table>
             </div>
+            {awardsPageCount > 1 && (
+              <div className="flex items-center justify-between mt-3 text-sm text-ink-soft">
+                <button
+                  type="button"
+                  onClick={() => setAwardsPage((n) => Math.max(1, n - 1))}
+                  disabled={awardsPage === 1}
+                  className="px-3 py-1 rounded-sm border border-line disabled:opacity-40 disabled:cursor-not-allowed hover:border-ink-soft"
+                >
+                  Previous
+                </button>
+                <span className="font-data text-xs">
+                  Page {awardsPage} of {awardsPageCount} · {procurement.awards.length} contracts
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAwardsPage((n) => Math.min(awardsPageCount, n + 1))}
+                  disabled={awardsPage === awardsPageCount}
+                  className="px-3 py-1 rounded-sm border border-line disabled:opacity-40 disabled:cursor-not-allowed hover:border-ink-soft"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </>
         )}
       </Section>

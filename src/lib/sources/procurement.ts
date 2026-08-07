@@ -96,7 +96,11 @@ function summarizeAwards(rawContracts: KhmdhsContract[]): ProcurementSummary {
   const values = awards.map((a) => a.value ?? 0);
   const totalValue = values.reduce((sum, v) => sum + v, 0);
   const sorted = [...awards].sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-  const byDate = [...awards].filter((a) => a.date).sort((a, b) => (a.date! > b.date! ? -1 : 1));
+  // Undated contracts sort last so the count here still matches contractsAwarded.
+  const byDate = [...awards].sort((a, b) => {
+    if (!a.date || !b.date) return a.date ? -1 : b.date ? 1 : 0;
+    return a.date > b.date ? -1 : 1;
+  });
   const years = awards.map((a) => (a.date ? new Date(a.date).getFullYear() : undefined)).filter(Boolean) as number[];
 
   return {
@@ -109,7 +113,7 @@ function summarizeAwards(rawContracts: KhmdhsContract[]): ProcurementSummary {
     lastAwardYear: years.length ? Math.max(...years) : undefined,
     contractingAuthorities: [...new Set(awards.map((a) => a.authority))],
     cpvCategories: [...new Set(awards.map((a) => a.cpv).filter(Boolean) as string[])],
-    recentAwards: byDate.slice(0, 5),
+    awards: byDate,
     available: true,
   };
 }
@@ -118,7 +122,7 @@ function emptySummary(): ProcurementSummary {
   return {
     contractingAuthorities: [],
     cpvCategories: [],
-    recentAwards: [],
+    awards: [],
     available: false,
   };
 }

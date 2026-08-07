@@ -70,7 +70,8 @@ export interface ProcurementSummary {
   lastAwardYear?: number;
   contractingAuthorities: string[];
   cpvCategories: string[];
-  recentAwards: ProcurementAward[];
+  /** All matched, non-cancelled contracts, sorted most recent first. */
+  awards: ProcurementAward[];
   available: boolean;
 }
 
