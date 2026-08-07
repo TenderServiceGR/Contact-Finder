@@ -13,6 +13,8 @@ import type { ProcurementAward, ProcurementSummary, SourceStatus } from "@/lib/t
 
 interface KhmdhsContract {
   title?: string;
+  referenceNumber?: string;
+  cancelled?: boolean;
   organization?: { key?: string; value?: string };
   totalCostWithoutVAT?: number;
   budget?: number;
@@ -25,18 +27,28 @@ interface KhmdhsContractResponse {
   totalElements?: number;
 }
 
+export interface ProcurementFilters {
+  /** Registration date in ΚΗΜΔΗΣ (YYYY-MM-DD), inclusive lower bound. */
+  dateFrom?: string;
+  /** Registration date in ΚΗΜΔΗΣ (YYYY-MM-DD), inclusive upper bound. */
+  dateTo?: string;
+}
+
 export interface ProcurementResult {
   status: SourceStatus;
   summary: ProcurementSummary;
 }
 
-export async function fetchFromProcurement(vat: string | undefined): Promise<ProcurementResult> {
+export async function fetchFromProcurement(
+  vat: string | undefined,
+  filters?: ProcurementFilters
+): Promise<ProcurementResult> {
   if (!vat) {
     return { status: "unavailable", summary: emptySummary() };
   }
 
   if (!env.procurement.isConfigured) {
-    return demoProcurementResult(vat);
+    return demoProcurementResult(vat, filters);
   }
 
   try {
@@ -44,7 +56,11 @@ export async function fetchFromProcurement(vat: string | undefined): Promise<Pro
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ vatNumber: vat }),
+      body: JSON.stringify({
+        vatNumber: vat,
+        ...(filters?.dateFrom ? { dateFrom: filters.dateFrom } : {}),
+        ...(filters?.dateTo ? { dateTo: filters.dateTo } : {}),
+      }),
       next: { revalidate: 0 },
     });
 
@@ -56,19 +72,23 @@ export async function fetchFromProcurement(vat: string | undefined): Promise<Pro
     }
 
     const data: KhmdhsContractResponse = await res.json();
-    return { status: "ok", summary: summarizeAwards(data?.content ?? [], data?.totalElements) };
+    // The search API has no "exclude cancelled" flag — cancellations are
+    // only filterable via a separate cancelDate range — so drop them here.
+    const activeContracts = (data?.content ?? []).filter((c) => !c.cancelled);
+    return { status: "ok", summary: summarizeAwards(activeContracts) };
   } catch {
     return { status: "unavailable", summary: emptySummary() };
   }
 }
 
-function summarizeAwards(rawContracts: KhmdhsContract[], totalElements?: number): ProcurementSummary {
+function summarizeAwards(rawContracts: KhmdhsContract[]): ProcurementSummary {
   const awards: ProcurementAward[] = rawContracts.map((c) => ({
     title: c.title ?? "Contract",
     authority: c.organization?.value ?? "Unknown authority",
     value: Number(c.totalCostWithoutVAT ?? c.budget ?? 0) || undefined,
     date: c.contractSignedDate,
     cpv: c.objectDetailsList?.[0]?.cpvs?.[0]?.key,
+    referenceNumber: c.referenceNumber,
   }));
 
   if (awards.length === 0) return { ...emptySummary(), available: false };
@@ -80,7 +100,7 @@ function summarizeAwards(rawContracts: KhmdhsContract[], totalElements?: number)
   const years = awards.map((a) => (a.date ? new Date(a.date).getFullYear() : undefined)).filter(Boolean) as number[];
 
   return {
-    contractsAwarded: totalElements ?? awards.length,
+    contractsAwarded: awards.length,
     totalValue,
     averageValue: totalValue / awards.length,
     largestContract: sorted[0],
@@ -104,11 +124,16 @@ function emptySummary(): ProcurementSummary {
 }
 
 // --- Demo data ---
-function demoProcurementResult(vat: string): ProcurementResult {
-  const awards: ProcurementAward[] = [
-    { title: "Προμήθεια εξοπλισμού πληροφορικής", authority: "Δήμος Αθηναίων", value: 84500, date: "2024-11-02", cpv: "30200000" },
-    { title: "Υπηρεσίες συντήρησης λογισμικού", authority: "Υπουργείο Ψηφιακής Διακυβέρνησης", value: 132000, date: "2023-06-18", cpv: "72267000" },
-    { title: "Προμήθεια αναλωσίμων γραφείου", authority: "Περιφέρεια Αττικής", value: 21750, date: "2022-02-09", cpv: "30190000" },
+function demoProcurementResult(vat: string, filters?: ProcurementFilters): ProcurementResult {
+  const awards: KhmdhsContract[] = [
+    { title: "Προμήθεια εξοπλισμού πληροφορικής", referenceNumber: "24SYMV009215539", organization: { value: "Δήμος Αθηναίων" }, totalCostWithoutVAT: 84500, contractSignedDate: "2024-11-02", objectDetailsList: [{ cpvs: [{ key: "30200000-1" }] }] },
+    { title: "Υπηρεσίες συντήρησης λογισμικού", referenceNumber: "23SYMV007123456", organization: { value: "Υπουργείο Ψηφιακής Διακυβέρνησης" }, totalCostWithoutVAT: 132000, contractSignedDate: "2023-06-18", objectDetailsList: [{ cpvs: [{ key: "72267000-4" }] }] },
+    { title: "Προμήθεια αναλωσίμων γραφείου", referenceNumber: "22SYMV004987654", organization: { value: "Περιφέρεια Αττικής" }, totalCostWithoutVAT: 21750, contractSignedDate: "2022-02-09", objectDetailsList: [{ cpvs: [{ key: "30190000-7" }] }] },
   ];
-  return { status: "ok", summary: { ...summarizeAwards(awards), available: true } };
+  const filtered = awards.filter((a) => {
+    if (filters?.dateFrom && a.contractSignedDate && a.contractSignedDate < filters.dateFrom) return false;
+    if (filters?.dateTo && a.contractSignedDate && a.contractSignedDate > filters.dateTo) return false;
+    return true;
+  });
+  return { status: "ok", summary: summarizeAwards(filtered) };
 }

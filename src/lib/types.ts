@@ -57,6 +57,7 @@ export interface ProcurementAward {
   value?: number;
   date?: string;
   cpv?: string;
+  referenceNumber?: string;
 }
 
 export interface ProcurementSummary {

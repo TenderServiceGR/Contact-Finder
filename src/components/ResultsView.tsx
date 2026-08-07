@@ -1,4 +1,7 @@
-import type { CompanyProfile } from "@/lib/types";
+"use client";
+
+import { useState } from "react";
+import type { CompanyProfile, ProcurementSummary } from "@/lib/types";
 import { Section, Field } from "./Section";
 import { Fact, LinkFact } from "./Fact";
 import { Stamp } from "./Stamp";
@@ -16,6 +19,43 @@ function money(n?: number) {
 
 export function ResultsView({ profile }: { profile: CompanyProfile }) {
   const p = profile;
+  const vat = p.identity.vat?.value;
+
+  const [procurement, setProcurement] = useState<ProcurementSummary>(profile.procurement);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [filterLoading, setFilterLoading] = useState(false);
+  const [filterError, setFilterError] = useState<string | null>(null);
+
+  async function handleApplyFilters() {
+    if (!vat) return;
+    setFilterLoading(true);
+    setFilterError(null);
+    try {
+      const res = await fetch("/api/procurement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vat, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFilterError(data.error ?? "Could not apply filters.");
+        return;
+      }
+      setProcurement(data.summary);
+    } catch {
+      setFilterError("Could not reach the server. Please try again.");
+    } finally {
+      setFilterLoading(false);
+    }
+  }
+
+  function handleResetFilters() {
+    setDateFrom("");
+    setDateTo("");
+    setFilterError(null);
+    setProcurement(profile.procurement);
+  }
 
   return (
     <div className="w-full max-w-4xl flex flex-col gap-6">
@@ -125,40 +165,6 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
         </dl>
       </Section>
 
-      {/* 3. Online Presence */}
-      <Section number="03" title="Online Presence">
-        <dl className="grid sm:grid-cols-2 gap-5 mb-5">
-          <Field label="LinkedIn"><LinkFact data={p.online.linkedin} label="Company page" /></Field>
-          <Field label="Facebook"><LinkFact data={p.online.facebook} label="Company page" /></Field>
-        </dl>
-        {p.online.description && (
-          <div className="mb-4">
-            <p className="text-[0.7rem] uppercase tracking-wide text-ink-soft mb-1">Description</p>
-            <p className="text-sm text-ink leading-relaxed">
-              {p.online.description.value} <Stamp source={p.online.description.source} />
-            </p>
-          </div>
-        )}
-        {p.online.certifications.length > 0 && (
-          <div className="mb-4">
-            <p className="text-[0.7rem] uppercase tracking-wide text-ink-soft mb-1">Certifications</p>
-            <div className="flex flex-wrap gap-2">
-              {p.online.certifications.map((c, i) => (
-                <span key={i} className="text-xs border border-line rounded-sm px-2 py-1">{c.value}</span>
-              ))}
-            </div>
-          </div>
-        )}
-        {p.online.latestNews.length > 0 && (
-          <div>
-            <p className="text-[0.7rem] uppercase tracking-wide text-ink-soft mb-1">Latest news</p>
-            <ul className="text-sm list-disc list-inside space-y-1">
-              {p.online.latestNews.map((n, i) => <li key={i}>{n.value}</li>)}
-            </ul>
-          </div>
-        )}
-      </Section>
-
       {/* 4. Business Activities */}
       <Section number="04" title="Business Activities">
         <dl className="grid sm:grid-cols-2 gap-5 mb-5">
@@ -194,23 +200,76 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
 
       {/* 5. Public Procurement */}
       <Section number="05" title="Public Procurement">
-        {!p.procurement.available ? (
-          <p className="text-sm text-ink-faint italic">No public procurement history found.</p>
+        {vat && (
+          <div className="flex flex-wrap items-end gap-3 mb-5 pb-5 border-b border-dashed border-line">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="proc-date-from" className="text-[0.7rem] uppercase tracking-wide text-ink-soft">
+                Published from
+              </label>
+              <input
+                id="proc-date-from"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="border border-line rounded-sm px-2 py-1.5 text-sm bg-paper-card text-ink"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="proc-date-to" className="text-[0.7rem] uppercase tracking-wide text-ink-soft">
+                Published to
+              </label>
+              <input
+                id="proc-date-to"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="border border-line rounded-sm px-2 py-1.5 text-sm bg-paper-card text-ink"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleApplyFilters}
+              disabled={filterLoading}
+              className="px-4 py-1.5 text-sm font-medium rounded-sm bg-ink text-paper-card disabled:opacity-50 disabled:cursor-not-allowed hover:bg-seal transition-colors"
+            >
+              {filterLoading ? "Applying…" : "Apply filters"}
+            </button>
+            {(dateFrom || dateTo) && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="px-2 py-1.5 text-sm text-ink-soft hover:text-ink underline underline-offset-2"
+              >
+                Reset
+              </button>
+            )}
+            <p className="text-xs text-ink-faint w-full">
+              Dates filter by registration date in ΚΗΜΔΗΣ. Without a range, the portal defaults to the last 180 days.
+            </p>
+            {filterError && <p className="text-xs text-risk-high w-full">{filterError}</p>}
+          </div>
+        )}
+
+        {!procurement.available ? (
+          <p className="text-sm text-ink-faint italic">
+            {vat ? "No public procurement history found for the selected period." : "No public procurement history found."}
+          </p>
         ) : (
           <>
             <dl className="grid sm:grid-cols-3 gap-5 mb-6">
-              <Field label="Contracts awarded"><span className="font-data text-lg">{p.procurement.contractsAwarded}</span></Field>
-              <Field label="Total value"><span className="font-data text-lg">{money(p.procurement.totalValue)}</span></Field>
-              <Field label="Average value"><span className="font-data text-lg">{money(p.procurement.averageValue)}</span></Field>
-              <Field label="First award"><span className="font-data">{p.procurement.firstAwardYear ?? "—"}</span></Field>
-              <Field label="Last award"><span className="font-data">{p.procurement.lastAwardYear ?? "—"}</span></Field>
-              <Field label="CPV categories"><span className="text-xs">{p.procurement.cpvCategories.join(", ") || "—"}</span></Field>
+              <Field label="Contracts awarded"><span className="font-data text-lg">{procurement.contractsAwarded}</span></Field>
+              <Field label="Total value"><span className="font-data text-lg">{money(procurement.totalValue)}</span></Field>
+              <Field label="Average value"><span className="font-data text-lg">{money(procurement.averageValue)}</span></Field>
+              <Field label="First award"><span className="font-data">{procurement.firstAwardYear ?? "—"}</span></Field>
+              <Field label="Last award"><span className="font-data">{procurement.lastAwardYear ?? "—"}</span></Field>
+              <Field label="CPV categories"><span className="text-xs">{procurement.cpvCategories.join(", ") || "—"}</span></Field>
             </dl>
             <p className="text-[0.7rem] uppercase tracking-wide text-ink-soft mb-2">Recent awards <Stamp source="procurement" /></p>
-            <div className="border border-line rounded-sm overflow-hidden">
+            <div className="border border-line rounded-sm overflow-hidden overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-paper text-ink-soft text-xs uppercase">
                   <tr>
+                    <th className="text-left font-medium px-3 py-2">Reference</th>
                     <th className="text-left font-medium px-3 py-2">Title</th>
                     <th className="text-left font-medium px-3 py-2">Authority</th>
                     <th className="text-left font-medium px-3 py-2">Date</th>
@@ -218,8 +277,9 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {p.procurement.recentAwards.map((a, i) => (
+                  {procurement.recentAwards.map((a, i) => (
                     <tr key={i} className="border-t border-line">
+                      <td className="px-3 py-2 font-data text-xs text-ink-soft whitespace-nowrap">{a.referenceNumber ?? "—"}</td>
                       <td className="px-3 py-2">{a.title}</td>
                       <td className="px-3 py-2 text-ink-soft">{a.authority}</td>
                       <td className="px-3 py-2 font-data text-ink-soft">{a.date ?? "—"}</td>

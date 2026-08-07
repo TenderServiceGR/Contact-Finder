@@ -70,7 +70,7 @@ export default function Home() {
           </div>
         )}
 
-        {state.status === "results" && <ResultsView profile={state.profile} />}
+        {state.status === "results" && <ResultsView key={state.profile.fetchedAt} profile={state.profile} />}
       </div>
     </main>
   );
