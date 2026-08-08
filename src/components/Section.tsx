@@ -3,14 +3,14 @@ export function Section({
   title,
   children,
 }: {
-  number: string;
+  number?: string;
   title: string;
   children: React.ReactNode;
 }) {
   return (
     <section className="bg-paper-card border border-line rounded-sm p-6 md:p-7">
       <div className="flex items-baseline gap-3 mb-5">
-        <span className="font-data text-xs text-seal">{number}</span>
+        {number && <span className="font-data text-xs text-seal">{number}</span>}
         <h2 className="font-display text-lg font-semibold tracking-tight text-ink">{title}</h2>
         <div className="flex-1 border-t border-dashed border-line ml-2" />
       </div>

@@ -16,6 +16,7 @@ interface KhmdhsContract {
   referenceNumber?: string;
   cancelled?: boolean;
   organization?: { key?: string; value?: string };
+  organizationVatNumber?: string;
   totalCostWithoutVAT?: number;
   budget?: number;
   contractSignedDate?: string;
@@ -42,6 +43,23 @@ export interface ProcurementResult {
   summary: ProcurementSummary;
 }
 
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+// Without an explicit date range, the ΚΗΜΔΗΣ API silently defaults to the
+// last 180 days. We want a 3-year window by default instead, so both sides
+// are always filled in explicitly before the request goes out.
+function resolveDateRange(filters?: ProcurementFilters): Required<ProcurementFilters> {
+  const now = new Date();
+  const threeYearsAgo = new Date(now);
+  threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
+  return {
+    dateFrom: filters?.dateFrom ?? isoDate(threeYearsAgo),
+    dateTo: filters?.dateTo ?? isoDate(now),
+  };
+}
+
 export async function fetchFromProcurement(
   vat: string | undefined,
   filters?: ProcurementFilters
@@ -50,8 +68,10 @@ export async function fetchFromProcurement(
     return { status: "unavailable", summary: emptySummary() };
   }
 
+  const { dateFrom, dateTo } = resolveDateRange(filters);
+
   if (!env.procurement.isConfigured) {
-    return demoProcurementResult(vat, filters);
+    return demoProcurementResult(vat, { dateFrom, dateTo });
   }
 
   try {
@@ -59,11 +79,7 @@ export async function fetchFromProcurement(
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        vatNumber: vat,
-        ...(filters?.dateFrom ? { dateFrom: filters.dateFrom } : {}),
-        ...(filters?.dateTo ? { dateTo: filters.dateTo } : {}),
-      }),
+      body: JSON.stringify({ vatNumber: vat, dateFrom, dateTo }),
       next: { revalidate: 0 },
     });
 
@@ -98,6 +114,7 @@ function summarizeAwards(rawContracts: KhmdhsContract[], vat: string): Procureme
       cpv: c.objectDetailsList?.[0]?.cpvs?.[0]?.key,
       referenceNumber: c.referenceNumber,
       contractorName: contractor?.name?.trim(),
+      authorityVat: c.organizationVatNumber,
     };
   });
 
@@ -139,15 +156,21 @@ function emptySummary(): ProcurementSummary {
 
 // --- Demo data ---
 function demoProcurementResult(vat: string, filters?: ProcurementFilters): ProcurementResult {
+  const monthsAgo = (m: number) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - m);
+    return isoDate(d);
+  };
   const contractingDataDetails = { contractingMembersDataList: [{ vatNumber: vat, name: "Demo Trading Single Member S.A." }] };
   const awards: KhmdhsContract[] = [
-    { title: "Προμήθεια εξοπλισμού πληροφορικής", referenceNumber: "24SYMV009215539", organization: { value: "Δήμος Αθηναίων" }, totalCostWithoutVAT: 84500, contractSignedDate: "2024-11-02", objectDetailsList: [{ cpvs: [{ key: "30200000-1" }] }], contractingDataDetails },
-    { title: "Υπηρεσίες συντήρησης λογισμικού", referenceNumber: "23SYMV007123456", organization: { value: "Υπουργείο Ψηφιακής Διακυβέρνησης" }, totalCostWithoutVAT: 132000, contractSignedDate: "2023-06-18", objectDetailsList: [{ cpvs: [{ key: "72267000-4" }] }], contractingDataDetails },
-    { title: "Προμήθεια αναλωσίμων γραφείου", referenceNumber: "22SYMV004987654", organization: { value: "Περιφέρεια Αττικής" }, totalCostWithoutVAT: 21750, contractSignedDate: "2022-02-09", objectDetailsList: [{ cpvs: [{ key: "30190000-7" }] }], contractingDataDetails },
+    { title: "Προμήθεια εξοπλισμού πληροφορικής", referenceNumber: "24SYMV009215539", organization: { value: "Δήμος Αθηναίων" }, organizationVatNumber: "090000001", totalCostWithoutVAT: 84500, contractSignedDate: monthsAgo(3), objectDetailsList: [{ cpvs: [{ key: "30200000-1" }] }], contractingDataDetails },
+    { title: "Υπηρεσίες συντήρησης λογισμικού", referenceNumber: "23SYMV007123456", organization: { value: "Υπουργείο Ψηφιακής Διακυβέρνησης" }, organizationVatNumber: "090000002", totalCostWithoutVAT: 132000, contractSignedDate: monthsAgo(14), objectDetailsList: [{ cpvs: [{ key: "72267000-4" }] }], contractingDataDetails },
+    { title: "Προμήθεια αναλωσίμων γραφείου", referenceNumber: "22SYMV004987654", organization: { value: "Περιφέρεια Αττικής" }, organizationVatNumber: "090000003", totalCostWithoutVAT: 21750, contractSignedDate: monthsAgo(30), objectDetailsList: [{ cpvs: [{ key: "30190000-7" }] }], contractingDataDetails },
   ];
+  const { dateFrom, dateTo } = resolveDateRange(filters);
   const filtered = awards.filter((a) => {
-    if (filters?.dateFrom && a.contractSignedDate && a.contractSignedDate < filters.dateFrom) return false;
-    if (filters?.dateTo && a.contractSignedDate && a.contractSignedDate > filters.dateTo) return false;
+    if (a.contractSignedDate && a.contractSignedDate < dateFrom) return false;
+    if (a.contractSignedDate && a.contractSignedDate > dateTo) return false;
     return true;
   });
   return { status: "ok", summary: summarizeAwards(filtered, vat) };

@@ -2,22 +2,21 @@
 
 import { useState } from "react";
 import type { CompanyProfile, ProcurementSummary } from "@/lib/types";
+import type { ContractorContactResult } from "@/lib/sources/procurementContact";
 import { Section, Field } from "./Section";
-import { Fact, LinkFact } from "./Fact";
 import { Stamp } from "./Stamp";
-
-const RISK_STYLE = {
-  high: "text-risk-high bg-risk-high-soft border-risk-high",
-  medium: "text-risk-medium bg-risk-medium-soft border-risk-medium",
-  low: "text-risk-low bg-risk-low-soft border-risk-low",
-};
 
 function money(n?: number) {
   if (n === undefined) return "—";
   return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 }
 
+function khmdhsUrl(referenceNumber: string) {
+  return `https://cerpp.eprocurement.gov.gr/upgkimdis/unprotected/home.xhtml?referenceNumber=${encodeURIComponent(referenceNumber)}&doc=true`;
+}
+
 const AWARDS_PAGE_SIZE = 10;
+const CONTACT_SCAN_LIMIT = 15;
 
 export function ResultsView({ profile }: { profile: CompanyProfile }) {
   const p = profile;
@@ -29,6 +28,11 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
   const [filterLoading, setFilterLoading] = useState(false);
   const [filterError, setFilterError] = useState<string | null>(null);
   const [awardsPage, setAwardsPage] = useState(1);
+  const [contactLookup, setContactLookup] = useState<{
+    loading: boolean;
+    error?: string;
+    result?: ContractorContactResult;
+  }>({ loading: false });
 
   const awardsPageCount = Math.max(1, Math.ceil(procurement.awards.length / AWARDS_PAGE_SIZE));
   const pagedAwards = procurement.awards.slice(
@@ -68,6 +72,32 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
     setAwardsPage(1);
   }
 
+  async function handleFindContact() {
+    if (!vat) return;
+    const contracts = procurement.awards
+      .filter((a) => a.referenceNumber)
+      .slice(0, CONTACT_SCAN_LIMIT)
+      .map((a) => ({ referenceNumber: a.referenceNumber!, authorityVat: a.authorityVat }));
+    if (contracts.length === 0) return;
+
+    setContactLookup({ loading: true });
+    try {
+      const res = await fetch("/api/procurement/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vat, contracts }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setContactLookup({ loading: false, error: data.error ?? "Could not scan contract documents." });
+        return;
+      }
+      setContactLookup({ loading: false, result: data });
+    } catch {
+      setContactLookup({ loading: false, error: "Could not reach the server. Please try again." });
+    }
+  }
+
   return (
     <div className="w-full max-w-4xl flex flex-col gap-6">
       {/* Header / identity stamp */}
@@ -100,117 +130,7 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
         </div>
       )}
 
-      {/* 6. AI Summary */}
-      <Section number="06" title="AI Summary">
-        <p className="text-sm leading-relaxed text-ink mb-4">{p.ai.summary}</p>
-        <div className="grid md:grid-cols-2 gap-5">
-          <div>
-            <h3 className="text-xs uppercase tracking-wide text-ink-soft mb-2">Sales insights</h3>
-            <p className="text-sm text-ink mb-2">{p.ai.salesRationale}</p>
-            {p.ai.suggestedDecisionMakers && p.ai.suggestedDecisionMakers.length > 0 && (
-              <p className="text-sm text-ink-soft">
-                <span className="text-ink-soft">Talk to: </span>
-                {p.ai.suggestedDecisionMakers.join(", ")}
-              </p>
-            )}
-            {p.ai.suggestedDepartments && (
-              <p className="text-sm text-ink-soft">
-                <span className="text-ink-soft">Departments: </span>
-                {p.ai.suggestedDepartments.join(", ")}
-              </p>
-            )}
-            {p.ai.recommendedFirstApproach && (
-              <p className="text-sm text-ink mt-2 italic">“{p.ai.recommendedFirstApproach}”</p>
-            )}
-          </div>
-          <div>
-            <h3 className="text-xs uppercase tracking-wide text-ink-soft mb-2">Risk indicators</h3>
-            {p.risks.length === 0 ? (
-              <p className="text-sm text-verified">No risk indicators flagged.</p>
-            ) : (
-              <ul className="flex flex-col gap-1.5">
-                {p.risks.map((r) => (
-                  <li
-                    key={r.code}
-                    className={`text-xs px-2.5 py-1 rounded-sm border inline-flex w-fit ${RISK_STYLE[r.severity]}`}
-                  >
-                    {r.label}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </Section>
-
-      {/* 1. Company Identity */}
-      <Section number="01" title="Company Identity">
-        <dl className="grid sm:grid-cols-2 gap-5">
-          <Field label="Legal name"><Fact data={p.identity.name} /></Field>
-          <Field label="Legal form"><Fact data={p.identity.legalForm} /></Field>
-          <Field label="VAT (ΑΦΜ)"><Fact data={p.identity.vat} mono /></Field>
-          <Field label="GEMI number"><Fact data={p.identity.gemiNumber} mono /></Field>
-          <Field label="Status"><Fact data={p.identity.status} /></Field>
-          <Field label="Registration date"><Fact data={p.identity.registrationDate} mono /></Field>
-        </dl>
-      </Section>
-
-      {/* 2. Contact Information */}
-      <Section number="02" title="Contact Information">
-        <dl className="grid sm:grid-cols-2 gap-5">
-          <Field label="Website"><LinkFact data={p.contact.website} label={p.contact.website?.value.replace(/^https?:\/\//, "")} /></Field>
-          <Field label="Address"><Fact data={p.contact.address} /></Field>
-          <Field label="Municipality"><Fact data={p.contact.municipality} /></Field>
-          <Field label="Region"><Fact data={p.contact.region} /></Field>
-          <Field label="Phone">
-            {p.contact.phones.length === 0 ? <span className="text-ink-faint italic">Not available</span> :
-              p.contact.phones.map((ph, i) => <span key={i} className="mr-3"><Fact data={ph} mono /></span>)}
-          </Field>
-          <Field label="Email">
-            {p.contact.emails.length === 0 ? <span className="text-ink-faint italic">Not available</span> :
-              p.contact.emails.map((em, i) => <span key={i} className="mr-3"><Fact data={em} mono /></span>)}
-          </Field>
-          {p.contact.mapsUrl && (
-            <Field label="Google Maps"><LinkFact data={p.contact.mapsUrl} label="Open in Google Maps" /></Field>
-          )}
-        </dl>
-      </Section>
-
-      {/* 4. Business Activities */}
-      <Section number="04" title="Business Activities">
-        <dl className="grid sm:grid-cols-2 gap-5 mb-5">
-          <Field label="Primary KAD"><Fact data={p.activity.primaryKad} /></Field>
-          <Field label="Chamber"><Fact data={p.activity.chamber} /></Field>
-        </dl>
-        {p.activity.secondaryKads.length > 0 && (
-          <div className="mb-5">
-            <p className="text-[0.7rem] uppercase tracking-wide text-ink-soft mb-2">Secondary activities</p>
-            <ul className="text-sm space-y-1">
-              {p.activity.secondaryKads.map((k, i) => (
-                <li key={i} className="flex items-center gap-2">
-                  <Fact data={k} />
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {p.activity.representatives.length > 0 && (
-          <div>
-            <p className="text-[0.7rem] uppercase tracking-wide text-ink-soft mb-2">Representatives</p>
-            <ul className="text-sm space-y-1">
-              {p.activity.representatives.map((r, i) => (
-                <li key={i} className="flex items-center gap-2">
-                  <span>{r.value.name}{r.value.role ? ` — ${r.value.role}` : ""}</span>
-                  <Stamp source={r.source} />
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </Section>
-
-      {/* 5. Public Procurement */}
-      <Section number="05" title="Public Procurement">
+      <Section title="Public Procurement">
         {vat && (
           <div className="flex flex-wrap items-end gap-3 mb-5 pb-5 border-b border-dashed border-line">
             <div className="flex flex-col gap-1">
@@ -255,7 +175,7 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
               </button>
             )}
             <p className="text-xs text-ink-faint w-full">
-              Dates filter by registration date in ΚΗΜΔΗΣ. Without a range, the portal defaults to the last 180 days.
+              Dates filter by registration date in ΚΗΜΔΗΣ. Without a range, results cover the last 3 years.
             </p>
             {filterError && <p className="text-xs text-risk-high w-full">{filterError}</p>}
           </div>
@@ -293,7 +213,20 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
                 <tbody>
                   {pagedAwards.map((a, i) => (
                     <tr key={i} className="border-t border-line">
-                      <td className="px-3 py-2 font-data text-xs text-ink-soft whitespace-nowrap">{a.referenceNumber ?? "—"}</td>
+                      <td className="px-3 py-2 font-data text-xs whitespace-nowrap">
+                        {a.referenceNumber ? (
+                          <a
+                            href={khmdhsUrl(a.referenceNumber)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-ink-soft underline underline-offset-2 hover:text-ink"
+                          >
+                            {a.referenceNumber}
+                          </a>
+                        ) : (
+                          <span className="text-ink-soft">—</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2">{a.title}</td>
                       <td className="px-3 py-2 text-ink-soft">{a.contractorName ?? "—"}</td>
                       <td className="px-3 py-2 text-ink-soft">{a.authority}</td>
@@ -327,12 +260,66 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
                 </button>
               </div>
             )}
+
+            <div className="mt-6 pt-5 border-t border-dashed border-line">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleFindContact}
+                  disabled={contactLookup.loading}
+                  className="px-4 py-1.5 text-sm font-medium rounded-sm border border-ink text-ink disabled:opacity-50 disabled:cursor-not-allowed hover:bg-ink hover:text-paper-card transition-colors"
+                >
+                  {contactLookup.loading ? "Scanning contract documents…" : "Find contractor contact info"}
+                </button>
+                <p className="text-xs text-ink-faint">
+                  Scans up to {Math.min(CONTACT_SCAN_LIMIT, procurement.awards.length)} contract PDFs from ΚΗΜΔΗΣ for
+                  a phone/email listed for the contractor (not the contracting authority).
+                </p>
+              </div>
+
+              {contactLookup.error && <p className="text-xs text-risk-high mt-2">{contactLookup.error}</p>}
+
+              {contactLookup.result && (
+                <div className="mt-3 text-sm">
+                  {contactLookup.result.found ? (
+                    <dl className="grid sm:grid-cols-2 gap-4">
+                      <Field label="Contractor phone">
+                        <span className="font-data">{contactLookup.result.phone ?? "—"}</span>
+                      </Field>
+                      <Field label="Contractor email">
+                        <span className="font-data">{contactLookup.result.email ?? "—"}</span>
+                      </Field>
+                      <p className="text-xs text-ink-faint sm:col-span-2">
+                        Found in contract{" "}
+                        {contactLookup.result.referenceNumber && (
+                          <a
+                            href={khmdhsUrl(contactLookup.result.referenceNumber)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline underline-offset-2 hover:text-ink"
+                          >
+                            {contactLookup.result.referenceNumber}
+                          </a>
+                        )}{" "}
+                        (checked {contactLookup.result.checked} document{contactLookup.result.checked === 1 ? "" : "s"}).
+                        Verify against the original document before using it.
+                      </p>
+                    </dl>
+                  ) : (
+                    <p className="text-ink-faint italic">
+                      No contractor phone/email found in the {contactLookup.result.checked} most recent contract
+                      document{contactLookup.result.checked === 1 ? "" : "s"}.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </>
         )}
       </Section>
 
       <p className="text-xs text-ink-faint text-center pb-6">
-        Profile generated {new Date(p.fetchedAt).toLocaleString("en-GB")} · Sources: ΓΕΜΗ Open Data, ΚΗΜΔΗΣ Open Data, public web search
+        Profile generated {new Date(p.fetchedAt).toLocaleString("en-GB")} · Source: ΚΗΜΔΗΣ Open Data
       </p>
     </div>
   );
