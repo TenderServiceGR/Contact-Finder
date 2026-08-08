@@ -1,22 +1,15 @@
 @import "tailwindcss";
 
+/* Brand design system (see ~/.claude/CLAUDE.md) */
 :root {
-  --paper: #eef0ea;
-  --paper-card: #fbfbf8;
-  --ink: #16233d;
-  --ink-soft: #525b6b;
-  --ink-faint: #8a8f79;
-  --line: #d7d6c8;
-  --seal: #a97b2f;
-  --seal-soft: #f1e4cc;
-  --verified: #3f6b52;
-  --verified-soft: #e2ebe3;
-  --risk-high: #9b3b3b;
-  --risk-high-soft: #f3e0df;
-  --risk-medium: #a97b2f;
-  --risk-medium-soft: #f1e4cc;
-  --risk-low: #6b7280;
-  --risk-low-soft: #ecece7;
+  --paper: #ffffff;
+  --paper-card: #ffffff;
+  --ink: #000000;
+  --ink-soft: #434343;
+  --ink-faint: rgba(67, 67, 67, 0.55);
+  --line: #434343;
+  --seal: #b41034;
+  --seal-soft: rgba(180, 16, 52, 0.08);
 }
 
 @theme inline {
@@ -28,33 +21,23 @@
   --color-line: var(--line);
   --color-seal: var(--seal);
   --color-seal-soft: var(--seal-soft);
-  --color-verified: var(--verified);
-  --color-verified-soft: var(--verified-soft);
-  --color-risk-high: var(--risk-high);
-  --color-risk-high-soft: var(--risk-high-soft);
-  --color-risk-medium: var(--risk-medium);
-  --color-risk-medium-soft: var(--risk-medium-soft);
-  --color-risk-low: var(--risk-low);
-  --color-risk-low-soft: var(--risk-low-soft);
-  --font-display: "Fraunces", "Iowan Old Style", serif;
-  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-data: "IBM Plex Mono", ui-monospace, monospace;
+  --font-display: "Fira Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: "Fira Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-data: "Fira Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-* {
-  border-color: var(--line);
+@layer base {
+  * {
+    border-color: var(--line);
+  }
 }
 
 body {
   background: var(--paper);
-  color: var(--ink);
+  color: var(--ink-soft);
   font-family: var(--font-body);
-  background-image:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size: 64px 64px;
-  background-position: -1px -1px;
-  background-attachment: fixed;
+  font-size: 18px;
+  font-weight: 400;
 }
 
 .font-display {
@@ -65,8 +48,7 @@ body {
   font-family: var(--font-data);
 }
 
-/* Signature element: an official "verification stamp" badge used to mark
-   where each fact came from -- GEMI, KHMDIS, or the open web. */
+/* Signature element: a small badge used to mark where each fact came from. */
 .stamp {
   display: inline-flex;
   align-items: center;
@@ -81,45 +63,16 @@ body {
   white-space: nowrap;
 }
 
-.stamp-gemi {
-  color: var(--verified);
-  background: var(--verified-soft);
+.stamp-gemi,
+.stamp-procurement {
+  color: var(--seal);
+  background: var(--seal-soft);
 }
 
 .stamp-google {
   color: var(--ink-soft);
   background: var(--paper);
   border-style: dashed;
-}
-
-.stamp-procurement {
-  color: var(--seal);
-  background: var(--seal-soft);
-}
-
-@keyframes stamp-in {
-  0% {
-    opacity: 0;
-    transform: scale(1.4) rotate(-8deg);
-  }
-  60% {
-    opacity: 1;
-    transform: scale(0.95) rotate(-2deg);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) rotate(-2deg);
-  }
-}
-
-.stamp-seal {
-  animation: stamp-in 0.5s ease-out both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .stamp-seal {
-    animation: none;
-  }
 }
 
 ::selection {

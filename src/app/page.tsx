@@ -14,13 +14,13 @@ type ViewState =
 export default function Home() {
   const [state, setState] = useState<ViewState>({ status: "idle" });
 
-  async function handleSearch(term: string, type: "name" | "vat") {
+  async function handleSearch(vat: string) {
     setState({ status: "loading" });
     try {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ term, type }),
+        body: JSON.stringify({ term: vat, type: "vat" }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -47,8 +47,8 @@ export default function Home() {
           Company Intelligence &amp; Contact Discovery
         </h1>
         <p className="text-ink-soft max-w-xl text-sm md:text-base">
-          One search across the Greek Business Registry, the Public Procurement Portal, and the
-          open web — a complete company profile in seconds, not a dozen browser tabs.
+          Enter a Greek company&apos;s VAT number (ΑΦΜ) to pull its public procurement history
+          from ΚΗΜΔΗΣ in seconds.
         </p>
       </header>
 
@@ -58,14 +58,12 @@ export default function Home() {
         {state.status === "loading" && (
           <div className="flex flex-col items-center gap-3 text-ink-soft">
             <div className="w-10 h-10 border-2 border-ink border-t-seal rounded-full animate-spin" />
-            <p className="font-data text-xs uppercase tracking-wide">
-              Querying ΓΕΜΗ, ΚΗΜΔΗΣ &amp; the web…
-            </p>
+            <p className="font-data text-xs uppercase tracking-wide">Querying ΚΗΜΔΗΣ…</p>
           </div>
         )}
 
         {state.status === "error" && (
-          <div className="border border-risk-high bg-risk-high-soft text-risk-high text-sm rounded-sm px-4 py-3 max-w-xl w-full text-center">
+          <div className="border border-seal bg-seal-soft text-seal text-sm rounded-sm px-4 py-3 max-w-xl w-full text-center">
             {state.message}
           </div>
         )}

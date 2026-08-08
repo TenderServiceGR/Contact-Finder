@@ -12,7 +12,7 @@ function money(n?: number) {
 }
 
 function khmdhsUrl(referenceNumber: string) {
-  return `https://cerpp.eprocurement.gov.gr/upgkimdis/unprotected/home.xhtml?referenceNumber=${encodeURIComponent(referenceNumber)}&doc=true`;
+  return `https://cerpp.eprocurement.gov.gr/upgkimdis/unprotected/home.xhtml?referenceNumber=${encodeURIComponent(referenceNumber)}`;
 }
 
 const AWARDS_PAGE_SIZE = 10;
@@ -100,37 +100,74 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
 
   return (
     <div className="w-full max-w-4xl flex flex-col gap-6">
-      {/* Header / identity stamp */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-5 border-b-2 border-ink">
-        <div>
-          <p className="font-data text-xs uppercase tracking-widest text-ink-soft mb-1">Company profile</p>
-          <h1 className="font-display text-3xl md:text-4xl font-semibold text-ink leading-tight">
-            {p.identity.name?.value ?? p.query.term}
-          </h1>
-          <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-ink-soft font-data">
-            {p.identity.vat && <span>ΑΦΜ {p.identity.vat.value}</span>}
-            {p.identity.gemiNumber && <span>ΓΕΜΗ {p.identity.gemiNumber.value}</span>}
-            {p.identity.status && (
-              <span className="stamp stamp-gemi">{p.identity.status.value}</span>
-            )}
-          </div>
-        </div>
-        <div className="stamp-seal shrink-0 w-20 h-20 rounded-full border-2 border-seal flex items-center justify-center text-seal text-center font-data text-[0.55rem] uppercase leading-tight rotate-[-4deg]">
-          Verified
-          <br />
-          Profile
-        </div>
+      <div className="pb-4 border-b-2 border-ink">
+        <span className="font-data text-sm text-ink-soft">ΑΦΜ</span>{" "}
+        <span className="font-data text-lg font-semibold text-ink">{vat ?? p.query.term}</span>
       </div>
 
       {p.warnings.length > 0 && (
-        <div className="border border-risk-medium bg-risk-medium-soft text-risk-medium text-sm rounded-sm px-4 py-3">
+        <div className="border border-seal bg-seal-soft text-seal text-sm rounded-sm px-4 py-3">
           {p.warnings.map((w, i) => (
             <p key={i}>{w}</p>
           ))}
         </div>
       )}
 
-      <Section title="Public Procurement">
+      <Section title="Company details">
+        {vat && (
+          <div className="flex flex-wrap items-center gap-3 mb-5 pb-5 border-b border-dashed border-line">
+            <button
+              type="button"
+              onClick={handleFindContact}
+              disabled={contactLookup.loading || procurement.awards.length === 0}
+              className="px-4 py-1.5 text-sm font-medium rounded-sm border-2 border-seal bg-seal text-paper-card disabled:opacity-50 disabled:cursor-not-allowed hover:bg-paper-card hover:text-seal transition-colors"
+            >
+              {contactLookup.loading ? "Scanning contract documents…" : "Find contractor contact info"}
+            </button>
+            <p className="text-xs text-ink-faint">
+              Scans up to {Math.min(CONTACT_SCAN_LIMIT, procurement.awards.length)} contract PDFs from ΚΗΜΔΗΣ for
+              a phone/email listed for the contractor (not the contracting authority).
+            </p>
+
+            {contactLookup.error && <p className="text-xs text-seal w-full">{contactLookup.error}</p>}
+
+            {contactLookup.result && (
+              <div className="w-full text-sm">
+                {contactLookup.result.found ? (
+                  <dl className="grid sm:grid-cols-2 gap-4">
+                    <Field label="Contractor phone">
+                      <span className="font-data">{contactLookup.result.phone ?? "—"}</span>
+                    </Field>
+                    <Field label="Contractor email">
+                      <span className="font-data">{contactLookup.result.email ?? "—"}</span>
+                    </Field>
+                    <p className="text-xs text-ink-faint sm:col-span-2">
+                      Found in contract{" "}
+                      {contactLookup.result.referenceNumber && (
+                        <a
+                          href={khmdhsUrl(contactLookup.result.referenceNumber)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline underline-offset-2 hover:text-ink"
+                        >
+                          {contactLookup.result.referenceNumber}
+                        </a>
+                      )}{" "}
+                      (checked {contactLookup.result.checked} document{contactLookup.result.checked === 1 ? "" : "s"}).
+                      Verify against the original document before using it.
+                    </p>
+                  </dl>
+                ) : (
+                  <p className="text-ink-faint italic">
+                    No contractor phone/email found in the {contactLookup.result.checked} most recent contract
+                    document{contactLookup.result.checked === 1 ? "" : "s"}.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {vat && (
           <div className="flex flex-wrap items-end gap-3 mb-5 pb-5 border-b border-dashed border-line">
             <div className="flex flex-col gap-1">
@@ -161,7 +198,7 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
               type="button"
               onClick={handleApplyFilters}
               disabled={filterLoading}
-              className="px-4 py-1.5 text-sm font-medium rounded-sm bg-ink text-paper-card disabled:opacity-50 disabled:cursor-not-allowed hover:bg-seal transition-colors"
+              className="px-4 py-1.5 text-sm font-medium rounded-sm border-2 border-seal bg-seal text-paper-card disabled:opacity-50 disabled:cursor-not-allowed hover:bg-paper-card hover:text-seal transition-colors"
             >
               {filterLoading ? "Applying…" : "Apply filters"}
             </button>
@@ -177,7 +214,7 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
             <p className="text-xs text-ink-faint w-full">
               Dates filter by registration date in ΚΗΜΔΗΣ. Without a range, results cover the last 3 years.
             </p>
-            {filterError && <p className="text-xs text-risk-high w-full">{filterError}</p>}
+            {filterError && <p className="text-xs text-seal w-full">{filterError}</p>}
           </div>
         )}
 
@@ -260,60 +297,6 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
                 </button>
               </div>
             )}
-
-            <div className="mt-6 pt-5 border-t border-dashed border-line">
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleFindContact}
-                  disabled={contactLookup.loading}
-                  className="px-4 py-1.5 text-sm font-medium rounded-sm border border-ink text-ink disabled:opacity-50 disabled:cursor-not-allowed hover:bg-ink hover:text-paper-card transition-colors"
-                >
-                  {contactLookup.loading ? "Scanning contract documents…" : "Find contractor contact info"}
-                </button>
-                <p className="text-xs text-ink-faint">
-                  Scans up to {Math.min(CONTACT_SCAN_LIMIT, procurement.awards.length)} contract PDFs from ΚΗΜΔΗΣ for
-                  a phone/email listed for the contractor (not the contracting authority).
-                </p>
-              </div>
-
-              {contactLookup.error && <p className="text-xs text-risk-high mt-2">{contactLookup.error}</p>}
-
-              {contactLookup.result && (
-                <div className="mt-3 text-sm">
-                  {contactLookup.result.found ? (
-                    <dl className="grid sm:grid-cols-2 gap-4">
-                      <Field label="Contractor phone">
-                        <span className="font-data">{contactLookup.result.phone ?? "—"}</span>
-                      </Field>
-                      <Field label="Contractor email">
-                        <span className="font-data">{contactLookup.result.email ?? "—"}</span>
-                      </Field>
-                      <p className="text-xs text-ink-faint sm:col-span-2">
-                        Found in contract{" "}
-                        {contactLookup.result.referenceNumber && (
-                          <a
-                            href={khmdhsUrl(contactLookup.result.referenceNumber)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline underline-offset-2 hover:text-ink"
-                          >
-                            {contactLookup.result.referenceNumber}
-                          </a>
-                        )}{" "}
-                        (checked {contactLookup.result.checked} document{contactLookup.result.checked === 1 ? "" : "s"}).
-                        Verify against the original document before using it.
-                      </p>
-                    </dl>
-                  ) : (
-                    <p className="text-ink-faint italic">
-                      No contractor phone/email found in the {contactLookup.result.checked} most recent contract
-                      document{contactLookup.result.checked === 1 ? "" : "s"}.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
           </>
         )}
       </Section>

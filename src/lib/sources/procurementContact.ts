@@ -1,3 +1,10 @@
+// Registers an inline (base64-embedded) PDF.js worker before any PDFParse
+// instance is created. Without this, pdfjs-dist resolves its worker as a
+// separate file at a path relative to its own package — that lookup breaks
+// once the code is bundled for a serverless deployment (works locally,
+// crashes on Vercel), per pdf-parse's own reference Next.js/Vercel demo:
+// https://github.com/mehmet-kozan/vercel-next-app-demo
+import "pdf-parse/worker";
 import { PDFParse } from "pdf-parse";
 import { env } from "@/lib/env";
 
