@@ -15,6 +15,53 @@ function khmdhsUrl(referenceNumber: string) {
   return `https://cerpp.eprocurement.gov.gr/upgkimdis/unprotected/home.xhtml?referenceNumber=${encodeURIComponent(referenceNumber)}`;
 }
 
+function RefLink({ referenceNumber }: { referenceNumber: string }) {
+  return (
+    <a
+      href={khmdhsUrl(referenceNumber)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline underline-offset-2 hover:text-ink"
+    >
+      {referenceNumber}
+    </a>
+  );
+}
+
+// Phone and email can come from different documents now that the scan keeps
+// going until both are found, so the two are only ever collapsed into a
+// single "found in contract X" sentence when they genuinely share one.
+function renderContactSources(result: ContractorContactResult) {
+  const { phone, phoneReferenceNumber, email, emailReferenceNumber } = result;
+
+  if (phone && email && phoneReferenceNumber === emailReferenceNumber && phoneReferenceNumber) {
+    return (
+      <>
+        Found in contract <RefLink referenceNumber={phoneReferenceNumber} />.
+      </>
+    );
+  }
+
+  const hasPhone = phone && phoneReferenceNumber;
+  const hasEmail = email && emailReferenceNumber;
+
+  return (
+    <>
+      {hasPhone && (
+        <>
+          Phone found in contract <RefLink referenceNumber={phoneReferenceNumber!} />
+        </>
+      )}
+      {hasPhone && hasEmail && "; "}
+      {hasEmail && (
+        <>
+          {hasPhone ? "email" : "Email"} found in contract <RefLink referenceNumber={emailReferenceNumber!} />
+        </>
+      )}.
+    </>
+  );
+}
+
 const AWARDS_PAGE_SIZE = 10;
 const CONTACT_SCAN_LIMIT = 15;
 
@@ -142,19 +189,9 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
                       <span className="font-data">{contactLookup.result.email ?? "—"}</span>
                     </Field>
                     <p className="text-xs text-ink-faint sm:col-span-2">
-                      Found in contract{" "}
-                      {contactLookup.result.referenceNumber && (
-                        <a
-                          href={khmdhsUrl(contactLookup.result.referenceNumber)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline underline-offset-2 hover:text-ink"
-                        >
-                          {contactLookup.result.referenceNumber}
-                        </a>
-                      )}{" "}
-                      (checked {contactLookup.result.checked} document{contactLookup.result.checked === 1 ? "" : "s"}).
-                      Verify against the original document before using it.
+                      {renderContactSources(contactLookup.result)} (checked {contactLookup.result.checked} document
+                      {contactLookup.result.checked === 1 ? "" : "s"}). Verify against the original document before
+                      using it.
                     </p>
                   </dl>
                 ) : (

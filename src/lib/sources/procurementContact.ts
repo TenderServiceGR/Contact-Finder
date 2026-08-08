@@ -34,24 +34,40 @@ export interface ContractRef {
 export interface ContractorContactResult {
   found: boolean;
   phone?: string;
+  phoneReferenceNumber?: string;
   email?: string;
-  referenceNumber?: string;
+  emailReferenceNumber?: string;
   checked: number;
 }
 
 export async function findContractorContact(vat: string, contracts: ContractRef[]): Promise<ContractorContactResult> {
   let checked = 0;
+  let phone: string | undefined;
+  let phoneReferenceNumber: string | undefined;
+  let email: string | undefined;
+  let emailReferenceNumber: string | undefined;
+
   for (const { referenceNumber, authorityVat } of contracts) {
     checked++;
     const text = await fetchContractText(referenceNumber);
     if (!text) continue;
 
     const match = extractContractorContact(text, vat, authorityVat);
-    if (match.phone || match.email) {
-      return { found: true, ...match, referenceNumber, checked };
+    if (!phone && match.phone) {
+      phone = match.phone;
+      phoneReferenceNumber = referenceNumber;
     }
+    if (!email && match.email) {
+      email = match.email;
+      emailReferenceNumber = referenceNumber;
+    }
+    // Keep scanning until both fields are filled in — a single document
+    // rarely has both, so stopping at the first hit tends to leave one
+    // field blank even when a later document would have completed it.
+    if (phone && email) break;
   }
-  return { found: false, checked };
+
+  return { found: Boolean(phone || email), phone, phoneReferenceNumber, email, emailReferenceNumber, checked };
 }
 
 async function fetchContractText(referenceNumber: string): Promise<string | null> {
