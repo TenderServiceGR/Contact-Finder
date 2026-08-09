@@ -7,7 +7,7 @@
   --ink: #000000;
   --ink-soft: #434343;
   --ink-faint: rgba(67, 67, 67, 0.55);
-  --line: #434343;
+  --line: #d9d9d9;
   --seal: #b41034;
   --seal-soft: rgba(180, 16, 52, 0.08);
 }
@@ -46,33 +46,6 @@ body {
 
 .font-data {
   font-family: var(--font-data);
-}
-
-/* Signature element: a small badge used to mark where each fact came from. */
-.stamp {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3em;
-  font-family: var(--font-data);
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 0.15rem 0.45rem;
-  border-radius: 999px;
-  border: 1px solid currentColor;
-  white-space: nowrap;
-}
-
-.stamp-gemi,
-.stamp-procurement {
-  color: var(--seal);
-  background: var(--seal-soft);
-}
-
-.stamp-google {
-  color: var(--ink-soft);
-  background: var(--paper);
-  border-style: dashed;
 }
 
 ::selection {

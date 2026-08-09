@@ -4,7 +4,6 @@ import { useState } from "react";
 import type { CompanyProfile, ProcurementSummary } from "@/lib/types";
 import type { ContractorContactResult } from "@/lib/sources/procurementContact";
 import { Section, Field } from "./Section";
-import { Stamp } from "./Stamp";
 
 function money(n?: number) {
   if (n === undefined) return "—";
@@ -265,13 +264,11 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
               <Field label="Contracts awarded"><span className="font-data text-lg">{procurement.contractsAwarded}</span></Field>
               <Field label="Total value"><span className="font-data text-lg">{money(procurement.totalValue)}</span></Field>
               <Field label="Average value"><span className="font-data text-lg">{money(procurement.averageValue)}</span></Field>
-              <Field label="First award"><span className="font-data">{procurement.firstAwardYear ?? "—"}</span></Field>
-              <Field label="Last award"><span className="font-data">{procurement.lastAwardYear ?? "—"}</span></Field>
-              <Field label="CPV categories"><span className="text-xs">{procurement.cpvCategories.join(", ") || "—"}</span></Field>
+              <div className="sm:col-span-3">
+                <Field label="CPV categories"><span className="text-xs">{procurement.cpvCategories.join(", ") || "—"}</span></Field>
+              </div>
             </dl>
-            <p className="text-[0.7rem] uppercase tracking-wide text-ink-soft mb-2">
-              Awards <Stamp source="procurement" />
-            </p>
+            <p className="text-[0.7rem] uppercase tracking-wide text-ink-soft mb-2">Contracts</p>
             <div className="border border-line rounded-sm overflow-hidden overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-paper text-ink-soft text-xs uppercase">
