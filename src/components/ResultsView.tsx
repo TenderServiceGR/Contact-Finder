@@ -125,13 +125,14 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
       .slice(0, CONTACT_SCAN_LIMIT)
       .map((a) => ({ referenceNumber: a.referenceNumber!, authorityVat: a.authorityVat }));
     if (contracts.length === 0) return;
+    const contractorName = procurement.awards.find((a) => a.contractorName)?.contractorName;
 
     setContactLookup({ loading: true });
     try {
       const res = await fetch("/api/procurement/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vat, contracts }),
+        body: JSON.stringify({ vat, contractorName, contracts }),
       });
       const data = await res.json();
       if (!res.ok) {

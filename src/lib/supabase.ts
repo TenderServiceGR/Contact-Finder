@@ -27,6 +27,9 @@ import { env } from "@/lib/env";
  *   created_at timestamptz default now(),
  *   unique (user_id, vat)
  * );
+ *
+ * The one table actually wired up today is `contractor_db` — see
+ * `src/lib/contractorDb.ts` for its schema and the save call site.
  */
 export const supabase = env.supabase.isConfigured
   ? createClient(env.supabase.url, env.supabase.anonKey)

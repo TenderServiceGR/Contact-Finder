@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { findContractorContact } from "@/lib/sources/procurementContact";
+import { saveContractorContact } from "@/lib/contractorDb";
 
 const bodySchema = z.object({
   vat: z.string().trim().min(1, "A VAT number is required."),
+  contractorName: z.string().trim().optional(),
   contracts: z
     .array(
       z.object({
@@ -23,8 +25,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request." }, { status: 400 });
   }
 
-  const { vat, contracts } = parsed.data;
+  const { vat, contractorName, contracts } = parsed.data;
   const result = await findContractorContact(vat, contracts);
+
+  if (result.found) {
+    await saveContractorContact({
+      vat,
+      contractorName,
+      contractorEmail: result.email,
+      contractorPhone: result.phone,
+    });
+  }
 
   return NextResponse.json(result);
 }

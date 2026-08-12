@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { SearchForm } from "@/components/SearchForm";
 import { ResultsView } from "@/components/ResultsView";
 import type { CompanyProfile } from "@/lib/types";
@@ -35,6 +36,12 @@ export default function Home() {
 
   return (
     <main className="flex-1 flex flex-col items-center px-4 py-12 md:py-16">
+      <div className="w-full max-w-4xl flex justify-end mb-2">
+        <Link href="/contractors" className="text-xs text-ink-soft underline underline-offset-2 hover:text-ink">
+          Saved contractor contacts →
+        </Link>
+      </div>
+
       <header
         className={`w-full max-w-4xl flex flex-col items-center text-center transition-all ${
           state.status === "results" ? "mb-8" : "mb-10 md:mb-14"
