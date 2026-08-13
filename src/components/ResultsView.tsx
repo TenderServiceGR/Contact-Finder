@@ -160,6 +160,34 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
         </div>
       )}
 
+      <Section title="Company Registry">
+        <dl className="grid sm:grid-cols-2 gap-5">
+          <Field label="Αρ. Γ.Ε.ΜΗ"><span className="font-data">{p.identity.gemiNumber?.value ?? "—"}</span></Field>
+          <Field label="Επωνυμία"><span>{p.identity.name?.value ?? "—"}</span></Field>
+          <Field label="Διακριτικός Τίτλος"><span>{p.identity.tradeName?.value ?? "—"}</span></Field>
+          <Field label="ΑΦΜ"><span className="font-data">{p.identity.vat?.value ?? "—"}</span></Field>
+          <Field label="Ημ/νία Σύστασης"><span className="font-data">{p.identity.registrationDate?.value ?? "—"}</span></Field>
+          <Field label="Νομική Μορφή"><span>{p.identity.legalForm?.value ?? "—"}</span></Field>
+          <Field label="Κατάσταση"><span>{p.identity.status?.value ?? "—"}</span></Field>
+          <Field label="Διεύθυνση"><span>{p.contact.address?.value ?? "—"}</span></Field>
+          <Field label="Ιστοσελίδα">
+            {p.contact.website ? (
+              <a
+                href={p.contact.website.value}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-seal underline underline-offset-2 hover:text-ink"
+              >
+                {p.contact.website.value.replace(/^https?:\/\//, "")}
+              </a>
+            ) : (
+              <span className="text-ink-faint">—</span>
+            )}
+          </Field>
+          <Field label="E-mail"><span className="font-data">{p.contact.emails[0]?.value ?? "—"}</span></Field>
+        </dl>
+      </Section>
+
       <Section title="Company details">
         {vat && (
           <div className="flex flex-wrap items-center gap-3 mb-5 pb-5 border-b border-dashed border-line">

@@ -17,6 +17,7 @@ export interface Representative {
 
 export interface CompanyIdentity {
   name?: Sourced<string>;
+  tradeName?: Sourced<string>;
   vat?: Sourced<string>;
   gemiNumber?: Sourced<string>;
   legalForm?: Sourced<string>;

@@ -5,7 +5,7 @@
 export const env = {
   gemi: {
     apiKey: process.env.GEMI_API_KEY ?? "",
-    baseUrl: process.env.GEMI_BASE_URL ?? "https://opendata-api.businessportal.gr/opendata",
+    baseUrl: process.env.GEMI_BASE_URL ?? "https://opendata-api.businessportal.gr/api/opendata/v1",
     get isConfigured() {
       return Boolean(this.apiKey);
     },

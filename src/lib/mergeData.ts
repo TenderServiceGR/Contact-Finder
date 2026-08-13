@@ -32,11 +32,11 @@ export function mergeCompanyData(
   if (google.status === "unavailable") warnings.push("Web search results were unavailable — showing partial results.");
 
   const contact = {
-    website: google.contact.website,
+    // GEMI's website is now a real registry field, not a Google guess.
+    website: gemi.contact.website ?? google.contact.website,
     phones: [...(gemi.contact as any)?.phones ?? [], ...(google.contact.phones ?? [])],
     emails: [...(gemi.contact as any)?.emails ?? [], ...(google.contact.emails ?? [])],
-    // Registry address wins over a scraped one when both exist.
-    address: gemi.contact.address ?? google.contact.website,
+    address: gemi.contact.address,
     municipality: gemi.contact.municipality,
     region: gemi.contact.region,
     mapsUrl: google.contact.mapsUrl,
