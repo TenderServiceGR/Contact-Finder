@@ -78,6 +78,32 @@ export interface ProcurementSummary {
   available: boolean;
 }
 
+export interface OpenTender {
+  title: string;
+  referenceNumber: string;
+  authority: string;
+  /** Offer submission deadline (local Greek time, ISO without offset). */
+  deadline?: string;
+  budget?: number;
+  procedure?: string;
+  contractType?: string;
+  noticeType?: string;
+  /** CPV codes on the notice that came from the company's ΚΑΔ mapping. */
+  matchedCpvs: { code: string; label: string }[];
+  /** True when at least one match comes from the company's primary ΚΑΔ. */
+  primaryMatch: boolean;
+}
+
+export interface TenderMatchResult {
+  status: SourceStatus;
+  tenders: OpenTender[];
+  /** Total open notices matching the CPV query (may exceed `tenders.length`). */
+  totalOpen: number;
+  cpvCodesQueried: number;
+  mappedKads: string[];
+  unmappedKads: string[];
+}
+
 export interface AiInsights {
   summary?: string;
   industry?: string;

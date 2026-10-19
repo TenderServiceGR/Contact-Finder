@@ -82,6 +82,17 @@ accept a phone/email match that is closer to the contractor's ΑΦΜ than to the
 contracting authority's — otherwise the match is skipped rather than mislabeled. Keep
 this proximity-based skip-over-guess behavior if touching this file.
 
+### Relevant open tenders (`src/lib/sources/tenders.ts`, `POST /api/tenders`)
+
+The results view calls `/api/tenders` after render with the company's ΚΑΔ. Each ΚΑΔ is
+mapped to CPV *prefixes* by the curated table `src/data/kad-cpv.ts` (longest ΚΑΔ prefix
+wins; every division 01–99 has a default; edit the table to tune matching). Prefixes are
+expanded against the official CPV list `src/data/cpv-codes.json` (converted from
+`el-cpv-codes.xlsx`) because ΚΗΜΔΗΣ `POST /notice` matches `cpvItems` by exact full code,
+not by prefix. The query also sets `finalDateFrom` (format `yyyy-MM-dd HH:mm`) so only
+notices still accepting offers come back. The code list is capped at 2,500 per query
+(~5s); the primary ΚΑΔ's codes go first.
+
 ### Config (`src/lib/env.ts`)
 
 All env var access is centralized here; nothing throws at import time. Each source
