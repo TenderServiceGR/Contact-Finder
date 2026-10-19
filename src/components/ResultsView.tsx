@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import type { CompanyProfile, ProcurementSummary } from "@/lib/types";
+import { useEffect, useState } from "react";
+import type { CompanyProfile, ProcurementSummary, TenderMatchResult } from "@/lib/types";
 import type { ContractorContactResult } from "@/lib/sources/procurementContact";
 import { Section, Field } from "./Section";
 
@@ -79,6 +79,53 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
     error?: string;
     result?: ContractorContactResult;
   }>({ loading: false });
+
+  const [tenders, setTenders] = useState<{ error?: string; result?: TenderMatchResult }>({});
+
+  // Open tenders are looked up separately (after the profile renders) because
+  // the CPV query is slower than the other sources.
+  const kadKey = JSON.stringify([
+    p.activity.primaryKad?.value,
+    ...p.activity.secondaryKads.map((k) => k.value),
+  ]);
+  const pastCpvKey = JSON.stringify(profile.procurement.cpvCategories);
+  useEffect(() => {
+    const [primary, ...secondary]: (string | undefined)[] = JSON.parse(kadKey);
+    const pastCpvs: string[] = JSON.parse(pastCpvKey);
+    const kads = [
+      ...(primary ? [{ value: primary, primary: true }] : []),
+      ...(secondary.filter(Boolean) as string[]).map((value) => ({ value, primary: false })),
+    ];
+    if (kads.length === 0) return;
+
+    const controller = new AbortController();
+    fetch("/api/tenders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kads, pastCpvs }),
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Could not load tenders.");
+        setTenders({ result: data });
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setTenders({ error: err instanceof Error ? err.message : "Could not load tenders." });
+      });
+    return () => controller.abort();
+  }, [kadKey, pastCpvKey]);
+
+  const [showPossible, setShowPossible] = useState(false);
+  const allTenders = tenders.result?.tenders ?? [];
+  const strongTenders = allTenders.filter((t) => t.strength === "strong");
+  // With no strong matches there is nothing else worth showing first, so fall back to the weaker ones.
+  const visibleTenders = showPossible || strongTenders.length === 0 ? allTenders : strongTenders;
+  const hiddenCount = allTenders.length - visibleTenders.length;
+
+  const hasKads = Boolean(p.activity.primaryKad) || p.activity.secondaryKads.length > 0;
+  const tendersLoading = hasKads && !tenders.result && !tenders.error;
 
   const awardsPageCount = Math.max(1, Math.ceil(procurement.awards.length / AWARDS_PAGE_SIZE));
   const pagedAwards = procurement.awards.slice(
@@ -359,6 +406,109 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
                   Next
                 </button>
               </div>
+            )}
+          </>
+        )}
+      </Section>
+
+      <Section title="Relevant open tenders">
+        {tendersLoading && <p className="text-sm text-ink-faint italic">Matching the company&apos;s ΚΑΔ to open ΚΗΜΔΗΣ tenders…</p>}
+        {tenders.error && <p className="text-sm text-seal">{tenders.error}</p>}
+        {!hasKads && (
+          <p className="text-sm text-ink-faint italic">No ΚΑΔ on record, so tenders can&apos;t be matched.</p>
+        )}
+        {tenders.result && (
+          <>
+            {tenders.result.status === "unavailable" && (
+              <p className="text-sm text-seal mb-3">ΚΗΜΔΗΣ did not respond. Please try again later.</p>
+            )}
+            <p className="text-xs text-ink-faint mb-4">
+              Open notices (offers still accepted) whose CPV codes fall under the company&apos;s ΚΑΔ:{" "}
+              {tenders.result.mappedKads.length > 0
+                ? tenders.result.mappedKads.map((k) => k.split(" - ")[0]).join(", ")
+                : "none could be mapped"}
+              {tenders.result.usedPastContracts && ", plus CPV codes from contracts it has already won"}. The ΚΑΔ→CPV
+              mapping is an approximation — check the notice before acting on it.
+              {tenders.result.unmappedKads.length > 0 &&
+                ` Not mapped: ${tenders.result.unmappedKads.map((k) => k.split(" - ")[0]).join(", ")}.`}
+            </p>
+            {allTenders.length === 0 ? (
+              tenders.result.status === "ok" && (
+                <p className="text-sm text-ink-faint italic">No open tenders match this company&apos;s activities right now.</p>
+              )
+            ) : (
+              <>
+                <div className="border border-line rounded-sm overflow-hidden overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-paper text-ink-soft text-xs uppercase">
+                      <tr>
+                        <th className="text-left font-medium px-3 py-2">Reference</th>
+                        <th className="text-left font-medium px-3 py-2">Title</th>
+                        <th className="text-left font-medium px-3 py-2">Authority</th>
+                        <th className="text-left font-medium px-3 py-2">CPV match</th>
+                        <th className="text-left font-medium px-3 py-2">Deadline</th>
+                        <th className="text-right font-medium px-3 py-2">Budget</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleTenders.map((t) => (
+                        <tr key={t.referenceNumber} className="border-t border-line align-top">
+                          <td className="px-3 py-2 font-data text-xs whitespace-nowrap">
+                            <RefLink referenceNumber={t.referenceNumber} />
+                          </td>
+                          <td className="px-3 py-2">
+                            {t.title}
+                            <span
+                              className={`ml-2 text-[0.65rem] uppercase tracking-wide ${
+                                t.strength === "strong" ? "text-seal" : "text-ink-faint"
+                              }`}
+                            >
+                              {t.strength === "strong" ? "strong match" : "possible"}
+                            </span>
+                            <div className="text-xs text-ink-faint mt-0.5">{t.reasons.join(" · ")}</div>
+                          </td>
+                          <td className="px-3 py-2 text-ink-soft">{t.authority}</td>
+                          <td className="px-3 py-2 text-xs text-ink-soft">
+                            {t.matchedCpvs.slice(0, 2).map((c) => (
+                              <div key={c.code} title={c.label}>
+                                <span className="font-data">{c.code}</span>
+                              </div>
+                            ))}
+                            {t.matchedCpvs.length > 2 && <div>+{t.matchedCpvs.length - 2} more</div>}
+                          </td>
+                          <td className="px-3 py-2 font-data text-ink-soft whitespace-nowrap">
+                            {t.deadline ? t.deadline.slice(0, 16).replace("T", " ") : "—"}
+                          </td>
+                          <td className="px-3 py-2 text-right font-data">{money(t.budget)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+                  <p className="font-data text-xs text-ink-faint">
+                    Showing {visibleTenders.length} of {allTenders.length} ranked matches
+                  </p>
+                  {hiddenCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPossible(true)}
+                      className="text-sm text-ink-soft hover:text-ink underline underline-offset-2"
+                    >
+                      Show {hiddenCount} possible match{hiddenCount === 1 ? "" : "es"}
+                    </button>
+                  )}
+                  {showPossible && strongTenders.length > 0 && strongTenders.length < allTenders.length && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPossible(false)}
+                      className="text-sm text-ink-soft hover:text-ink underline underline-offset-2"
+                    >
+                      Show strong matches only
+                    </button>
+                  )}
+                </div>
+              </>
             )}
           </>
         )}
