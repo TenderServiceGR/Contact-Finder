@@ -52,6 +52,7 @@ const W_PAST_EXACT = 6;
 const W_PAST_CLASS = 4; // shares the first 4 CPV digits with a past contract
 const W_PRIMARY = 3;
 const STRONG_SCORE = 6;
+const NARROW_PREFIX_CODES = 60; // a prefix covering this few CPV codes counts as specific
 
 export interface KadInput {
   /** Raw ΚΑΔ string as stored on the profile, e.g. "46.90 - Μη εξειδικευμένο…". */
@@ -97,11 +98,14 @@ export function resolveCpvCodes(kads: KadInput[], pastCpvs: string[] = []): Reso
     }
     mappedKads.push(kad.value);
     for (const prefix of hit.prefixes) {
-      for (const code of ALL_CPV) {
-        if (!code.startsWith(prefix)) continue;
+      const codes = ALL_CPV.filter((code) => code.startsWith(prefix));
+      // A short prefix that covers only a handful of codes (e.g. "791" = legal
+      // services) is as specific as a long one, so don't mark it down.
+      const depth = codes.length <= NARROW_PREFIX_CODES ? Math.max(prefix.length, 4) : prefix.length;
+      for (const code of codes) {
         const cur = kadCodes.get(code);
         kadCodes.set(code, {
-          depth: Math.max(cur?.depth ?? 0, prefix.length),
+          depth: Math.max(cur?.depth ?? 0, depth),
           primary: (cur?.primary ?? false) || kad.primary,
         });
       }

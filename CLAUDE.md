@@ -93,9 +93,9 @@ not by prefix. The query also sets `finalDateFrom` (format `yyyy-MM-dd HH:mm`) s
 notices still accepting offers come back. Two queries run in parallel (past-contract +
 primary-ΚΑΔ codes, then secondary-ΚΑΔ codes), each capped at 2,500 codes. Tenders are
 scored in `scoreTender`: CPV codes from the company's own past contracts weigh most, then
-primary ΚΑΔ, then mapping depth (a 4–5 digit table entry beats a 2-digit division);
+primary ΚΑΔ, then mapping depth (a 4–5 digit table entry beats a 2-digit division; a prefix covering ≤60 CPV codes counts as specific);
 score ≥ 6 is "strong", the rest "possible" (hidden behind a toggle in the UI). Medical
-(33, 85), construction (45, 71) and IT/telecom (58, 61–63, 26.2, 95.1) and wholesale/retail (46, 47) entries in
+(33, 85), construction (45, 71) and IT/telecom (58, 61–63, 26.2, 95.1) wholesale/retail (46, 47) and business-services (69–82) entries in
 the table are class-level; other sectors still use broad division defaults.
 
 ### Config (`src/lib/env.ts`)
