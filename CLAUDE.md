@@ -82,6 +82,22 @@ accept a phone/email match that is closer to the contractor's ΑΦΜ than to the
 contracting authority's — otherwise the match is skipped rather than mislabeled. Keep
 this proximity-based skip-over-guess behavior if touching this file.
 
+### Relevant open tenders (`src/lib/sources/tenders.ts`, `POST /api/tenders`)
+
+The results view calls `/api/tenders` after render with the company's ΚΑΔ. Each ΚΑΔ is
+mapped to CPV *prefixes* by the curated table `src/data/kad-cpv.ts` (longest ΚΑΔ prefix
+wins; every division 01–99 has a default; edit the table to tune matching). Prefixes are
+expanded against the official CPV list `src/data/cpv-codes.json` (converted from
+`el-cpv-codes.xlsx`) because ΚΗΜΔΗΣ `POST /notice` matches `cpvItems` by exact full code,
+not by prefix. The query also sets `finalDateFrom` (format `yyyy-MM-dd HH:mm`) so only
+notices still accepting offers come back. Two queries run in parallel (past-contract +
+primary-ΚΑΔ codes, then secondary-ΚΑΔ codes), each capped at 2,500 codes. Tenders are
+scored in `scoreTender`: CPV codes from the company's own past contracts weigh most, then
+primary ΚΑΔ, then mapping depth (a 4–5 digit table entry beats a 2-digit division; a prefix covering ≤60 CPV codes counts as specific);
+score ≥ 6 is "strong", the rest "possible" (hidden behind a toggle in the UI). Medical
+(33, 85), construction (45, 71) and IT/telecom (58, 61–63, 26.2, 95.1) wholesale/retail (46, 47) business-services (69–82) and education/health/social (85–88) entries in
+the table are class-level; other sectors still use broad division defaults.
+
 ### Config (`src/lib/env.ts`)
 
 All env var access is centralized here; nothing throws at import time. Each source

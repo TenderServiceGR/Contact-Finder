@@ -50,6 +50,15 @@ interface GemiCompany {
   email?: string;
   municipality?: GemiCodeDescr;
   prefecture?: GemiCodeDescr;
+  activities?: GemiActivity[];
+}
+
+interface GemiActivity {
+  activity?: { id?: string; descr?: string; kadVersion?: string };
+  /** "Κύρια" (primary) or "Δευτερεύουσα" (secondary). */
+  type?: string;
+  dtFrom?: string;
+  dtTo?: string | null;
 }
 
 interface GemiSearchResponse {
@@ -121,7 +130,33 @@ function mapGemiCompany(company: GemiCompany, raw: unknown): GemiResult {
     region: company.prefecture?.descr ? src(company.prefecture.descr) : undefined,
   };
 
-  return { status: "ok", identity, contact, activity: {}, raw };
+  return { status: "ok", identity, contact, activity: mapActivities(company.activities), raw };
+}
+
+// ΓΕΜΗ returns the full ΚΑΔ history (kad_2008 entries end when kad_2026 ones
+// begin, and the same code can appear under both), so keep only entries still
+// in force and de-duplicate by code. Codes are 8 digits ("64191204"); shown
+// dotted ("64.19.12.04") followed by the description, like the demo data.
+function mapActivities(activities?: GemiActivity[]): Partial<BusinessActivity> {
+  const today = new Date().toISOString().slice(0, 10);
+  const seen = new Set<string>();
+  const current: { label: string; primary: boolean }[] = [];
+
+  for (const a of activities ?? []) {
+    const id = a.activity?.id?.replace(/\D/g, "");
+    if (!id || seen.has(id)) continue;
+    if (a.dtTo && a.dtTo < today) continue;
+    seen.add(id);
+    const dotted = id.match(/\d{1,2}/g)?.join(".") ?? id;
+    const descr = a.activity?.descr?.trim();
+    current.push({ label: descr ? `${dotted} - ${descr}` : dotted, primary: a.type === "Κύρια" });
+  }
+
+  const primary = current.find((c) => c.primary);
+  return {
+    primaryKad: primary ? src(primary.label) : undefined,
+    secondaryKads: current.filter((c) => c !== primary).map((c) => src(c.label)),
+  };
 }
 
 function normalizeUrl(url: string): string {
