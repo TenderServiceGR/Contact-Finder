@@ -92,6 +92,11 @@ export interface OpenTender {
   matchedCpvs: { code: string; label: string }[];
   /** True when at least one match comes from the company's primary ΚΑΔ. */
   primaryMatch: boolean;
+  /** Relevance score (higher = better fit); see scoreTender in sources/tenders.ts. */
+  score: number;
+  strength: "strong" | "possible";
+  /** Plain-language reasons the tender was matched. */
+  reasons: string[];
 }
 
 export interface TenderMatchResult {
@@ -102,6 +107,8 @@ export interface TenderMatchResult {
   cpvCodesQueried: number;
   mappedKads: string[];
   unmappedKads: string[];
+  /** True when the company's past contract CPV codes were used as a signal. */
+  usedPastContracts: boolean;
 }
 
 export interface AiInsights {

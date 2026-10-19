@@ -88,8 +88,10 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
     p.activity.primaryKad?.value,
     ...p.activity.secondaryKads.map((k) => k.value),
   ]);
+  const pastCpvKey = JSON.stringify(profile.procurement.cpvCategories);
   useEffect(() => {
     const [primary, ...secondary]: (string | undefined)[] = JSON.parse(kadKey);
+    const pastCpvs: string[] = JSON.parse(pastCpvKey);
     const kads = [
       ...(primary ? [{ value: primary, primary: true }] : []),
       ...(secondary.filter(Boolean) as string[]).map((value) => ({ value, primary: false })),
@@ -100,7 +102,7 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
     fetch("/api/tenders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kads }),
+      body: JSON.stringify({ kads, pastCpvs }),
       signal: controller.signal,
     })
       .then(async (res) => {
@@ -113,7 +115,14 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
         setTenders({ error: err instanceof Error ? err.message : "Could not load tenders." });
       });
     return () => controller.abort();
-  }, [kadKey]);
+  }, [kadKey, pastCpvKey]);
+
+  const [showPossible, setShowPossible] = useState(false);
+  const allTenders = tenders.result?.tenders ?? [];
+  const strongTenders = allTenders.filter((t) => t.strength === "strong");
+  // With no strong matches there is nothing else worth showing first, so fall back to the weaker ones.
+  const visibleTenders = showPossible || strongTenders.length === 0 ? allTenders : strongTenders;
+  const hiddenCount = allTenders.length - visibleTenders.length;
 
   const hasKads = Boolean(p.activity.primaryKad) || p.activity.secondaryKads.length > 0;
   const tendersLoading = hasKads && !tenders.result && !tenders.error;
@@ -418,11 +427,12 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
               {tenders.result.mappedKads.length > 0
                 ? tenders.result.mappedKads.map((k) => k.split(" - ")[0]).join(", ")
                 : "none could be mapped"}
-              . The ΚΑΔ→CPV mapping is an approximation — check the notice before acting on it.
+              {tenders.result.usedPastContracts && ", plus CPV codes from contracts it has already won"}. The ΚΑΔ→CPV
+              mapping is an approximation — check the notice before acting on it.
               {tenders.result.unmappedKads.length > 0 &&
                 ` Not mapped: ${tenders.result.unmappedKads.map((k) => k.split(" - ")[0]).join(", ")}.`}
             </p>
-            {tenders.result.tenders.length === 0 ? (
+            {allTenders.length === 0 ? (
               tenders.result.status === "ok" && (
                 <p className="text-sm text-ink-faint italic">No open tenders match this company&apos;s activities right now.</p>
               )
@@ -441,16 +451,21 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {tenders.result.tenders.map((t) => (
+                      {visibleTenders.map((t) => (
                         <tr key={t.referenceNumber} className="border-t border-line align-top">
                           <td className="px-3 py-2 font-data text-xs whitespace-nowrap">
                             <RefLink referenceNumber={t.referenceNumber} />
                           </td>
                           <td className="px-3 py-2">
                             {t.title}
-                            {t.primaryMatch && (
-                              <span className="ml-2 text-[0.65rem] uppercase tracking-wide text-seal">primary ΚΑΔ</span>
-                            )}
+                            <span
+                              className={`ml-2 text-[0.65rem] uppercase tracking-wide ${
+                                t.strength === "strong" ? "text-seal" : "text-ink-faint"
+                              }`}
+                            >
+                              {t.strength === "strong" ? "strong match" : "possible"}
+                            </span>
+                            <div className="text-xs text-ink-faint mt-0.5">{t.reasons.join(" · ")}</div>
                           </td>
                           <td className="px-3 py-2 text-ink-soft">{t.authority}</td>
                           <td className="px-3 py-2 text-xs text-ink-soft">
@@ -470,9 +485,29 @@ export function ResultsView({ profile }: { profile: CompanyProfile }) {
                     </tbody>
                   </table>
                 </div>
-                <p className="font-data text-xs text-ink-faint mt-3">
-                  Showing {tenders.result.tenders.length} of {tenders.result.totalOpen} matching open notices
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+                  <p className="font-data text-xs text-ink-faint">
+                    Showing {visibleTenders.length} of {allTenders.length} ranked matches
+                  </p>
+                  {hiddenCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPossible(true)}
+                      className="text-sm text-ink-soft hover:text-ink underline underline-offset-2"
+                    >
+                      Show {hiddenCount} possible match{hiddenCount === 1 ? "" : "es"}
+                    </button>
+                  )}
+                  {showPossible && strongTenders.length > 0 && strongTenders.length < allTenders.length && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPossible(false)}
+                      className="text-sm text-ink-soft hover:text-ink underline underline-offset-2"
+                    >
+                      Show strong matches only
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </>

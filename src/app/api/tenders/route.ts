@@ -7,6 +7,8 @@ const bodySchema = z.object({
     .array(z.object({ value: z.string().trim().min(2), primary: z.boolean() }))
     .min(1, "At least one ΚΑΔ is required.")
     .max(30),
+  /** CPV codes from the company's past contracts (ΚΗΜΔΗΣ), strongest relevance signal. */
+  pastCpvs: z.array(z.string().regex(/^\d{8}-\d$/)).max(200).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -17,6 +19,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request." }, { status: 400 });
   }
 
-  const result = await fetchRelevantTenders(parsed.data.kads);
+  const result = await fetchRelevantTenders(parsed.data.kads, parsed.data.pastCpvs ?? []);
   return NextResponse.json(result);
 }

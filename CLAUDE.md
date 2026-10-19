@@ -90,8 +90,13 @@ wins; every division 01–99 has a default; edit the table to tune matching). Pr
 expanded against the official CPV list `src/data/cpv-codes.json` (converted from
 `el-cpv-codes.xlsx`) because ΚΗΜΔΗΣ `POST /notice` matches `cpvItems` by exact full code,
 not by prefix. The query also sets `finalDateFrom` (format `yyyy-MM-dd HH:mm`) so only
-notices still accepting offers come back. The code list is capped at 2,500 per query
-(~5s); the primary ΚΑΔ's codes go first.
+notices still accepting offers come back. Two queries run in parallel (past-contract +
+primary-ΚΑΔ codes, then secondary-ΚΑΔ codes), each capped at 2,500 codes. Tenders are
+scored in `scoreTender`: CPV codes from the company's own past contracts weigh most, then
+primary ΚΑΔ, then mapping depth (a 4–5 digit table entry beats a 2-digit division);
+score ≥ 6 is "strong", the rest "possible" (hidden behind a toggle in the UI). Medical
+(33, 85) and construction (45, 71) entries in the table are class-level; other sectors
+still use broad division defaults.
 
 ### Config (`src/lib/env.ts`)
 
